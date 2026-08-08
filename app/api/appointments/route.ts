@@ -94,7 +94,7 @@ export async function POST(req: NextRequest) {
       if (error.code === "23P01") {
         return NextResponse.json({ error: "This time slot is no longer available" }, { status: 409 });
       }
-      return NextResponse.json({ error: "Failed to create appointment" }, { status: 500 });
+      return NextResponse.json({ error: error.message, code: error.code, details: error.details }, { status: 500 });
     }
 
     // Send SMS to Ike
