@@ -1,3 +1,5 @@
+export const runtime = "edge";
+
 import BookingFlow from "@/components/booking/BookingFlow";
 import { getActiveServices } from "@/lib/data";
 
