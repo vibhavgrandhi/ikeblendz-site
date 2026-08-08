@@ -83,6 +83,9 @@ export async function POST(req: NextRequest) {
         end_time,
         notes: notesValue,
         status: "pending",
+        stripe_payment_intent_id: null,
+        stripe_customer_id: null,
+        stripe_payment_method_id: null,
       })
       .select()
       .single();
