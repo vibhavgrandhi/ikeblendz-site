@@ -247,8 +247,8 @@ export default function BookingFlow({ services, preselected = "" }: { services: 
                   placeholder="Your name" />
               </div>
               <div>
-                <label className="block text-brand-muted text-xs tracking-wider uppercase mb-1.5">Phone (optional)</label>
-                <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)}
+                <label className="block text-brand-muted text-xs tracking-wider uppercase mb-1.5">Phone *</label>
+                <input type="tel" required value={phone} onChange={(e) => setPhone(e.target.value)}
                   className="w-full bg-brand-charcoal border border-white/10 text-brand-white px-4 py-3 focus:border-brand-gold focus:outline-none transition-colors"
                   placeholder="(555) 123-4567" />
               </div>
