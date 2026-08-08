@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -63,9 +64,42 @@ const TABS = [
 
 export default function MobileTabBar() {
   const pathname = usePathname();
+  const isHome = pathname === "/";
+  const [visible, setVisible] = useState(false);
+  const revealedRef = useRef(false);
+
+  useEffect(() => {
+    // On non-home pages always show immediately
+    if (!isHome) {
+      setVisible(true);
+      return;
+    }
+    // If already revealed this session, show immediately
+    if (typeof sessionStorage !== "undefined" && sessionStorage.getItem("tabsRevealed")) {
+      setVisible(true);
+      revealedRef.current = true;
+      return;
+    }
+    // Start hidden, reveal after scrolling past hero (100vh)
+    setVisible(false);
+    const checkScroll = () => {
+      if (!revealedRef.current && window.scrollY >= window.innerHeight * 0.85) {
+        revealedRef.current = true;
+        setVisible(true);
+        sessionStorage.setItem("tabsRevealed", "1");
+        window.removeEventListener("scroll", checkScroll);
+      }
+    };
+    window.addEventListener("scroll", checkScroll, { passive: true });
+    return () => window.removeEventListener("scroll", checkScroll);
+  }, [isHome]);
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 md:hidden bg-brand-black/95 backdrop-blur-md border-t border-white/8">
+    <nav
+      className={`fixed bottom-0 left-0 right-0 z-50 md:hidden bg-brand-black/95 backdrop-blur-md border-t border-white/8 transition-transform duration-500 ease-out ${
+        visible ? "translate-y-0" : "translate-y-full"
+      }`}
+    >
       <div className="flex items-stretch">
         {TABS.map((tab) => {
           const active = pathname === tab.href;
@@ -76,10 +110,12 @@ export default function MobileTabBar() {
                 href={tab.href}
                 className="flex-1 flex flex-col items-center justify-center py-2 gap-0.5"
               >
-                <span className={`flex items-center justify-center w-10 h-8 rounded-full bg-brand-gold transition-all ${active ? "scale-110" : ""}`}>
-                  <span className="text-brand-black">{tab.icon}</span>
+                <span className={`flex items-center justify-center w-10 h-8 rounded-full transition-all ${
+                  active ? "bg-brand-gold scale-110" : "border border-brand-gold"
+                }`}>
+                  <span className={active ? "text-brand-black" : "text-brand-gold"}>{tab.icon}</span>
                 </span>
-                <span className="text-[10px] font-semibold tracking-wider uppercase text-brand-gold">
+                <span className={`text-[10px] font-semibold tracking-wider uppercase ${active ? "text-brand-gold" : "text-brand-muted"}`}>
                   {tab.label}
                 </span>
               </Link>

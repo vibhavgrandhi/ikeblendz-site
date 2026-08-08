@@ -133,6 +133,7 @@ export default function BookingFlow({ services, preselected = "" }: { services: 
   const [stripeCustomerId, setStripeCustomerId] = useState("");
   const [stripePaymentIntentId, setStripePaymentIntentId] = useState("");
   const [prepaid, setPrepaid] = useState(false);
+  const [agreedToPolicy, setAgreedToPolicy] = useState(false);
 
   const svc = services.find((s) => s.name === service);
 
@@ -423,24 +424,44 @@ export default function BookingFlow({ services, preselected = "" }: { services: 
               ))}
             </div>
 
+            <div className="bg-brand-charcoal border border-white/5 p-4 mb-5 space-y-2 text-xs text-brand-muted leading-relaxed">
+              <p className="text-brand-gold text-xs tracking-wider uppercase font-semibold mb-2">Booking Policies</p>
+              <p>• Same-day cancellation — $5 fee charged to card.</p>
+              <p>• 10+ minutes late — $10 fee charged to card.</p>
+              <p>• No-show — full service charge applies.</p>
+              <p>• Cancel 24hrs+ before — full deposit refunded.</p>
+            </div>
+
+            <label className="flex items-start gap-3 mb-5 cursor-pointer group">
+              <input
+                type="checkbox"
+                checked={agreedToPolicy}
+                onChange={(e) => setAgreedToPolicy(e.target.checked)}
+                className="mt-0.5 w-4 h-4 accent-brand-gold cursor-pointer shrink-0"
+              />
+              <span className="text-brand-muted text-sm group-hover:text-brand-light transition-colors">
+                I have read and agree to the booking policies above.
+              </span>
+            </label>
+
             {error && <p className="mb-4 text-red-400 text-sm">{error}</p>}
 
             <button
               onClick={goToPayment}
-              disabled={loading}
-              className="w-full py-3.5 bg-brand-gold text-brand-black font-semibold text-sm tracking-widest uppercase hover:bg-brand-gold-light transition-colors disabled:opacity-50 mb-3"
+              disabled={loading || !agreedToPolicy}
+              className="w-full py-3.5 bg-brand-gold text-brand-black font-semibold text-sm tracking-widest uppercase hover:bg-brand-gold-light transition-colors disabled:opacity-40 disabled:cursor-not-allowed mb-3"
             >
               {loading ? "Loading..." : `Pre-Pay $${DEPOSIT_AMOUNT.toFixed(2)} Deposit`}
             </button>
             <button
               onClick={() => confirmBooking()}
-              disabled={loading}
-              className="w-full py-3 text-brand-muted text-sm hover:text-brand-white transition-colors border border-white/10 hover:border-white/20 disabled:opacity-50"
+              disabled={loading || !agreedToPolicy}
+              className="w-full py-3 text-brand-muted text-sm hover:text-brand-white transition-colors border border-white/10 hover:border-white/20 disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {loading ? "Booking..." : "Book — Pay at Appointment"}
             </button>
 
-            <button onClick={() => setStep("info")} className="mt-4 text-brand-muted text-sm hover:text-brand-gold transition-colors">
+            <button onClick={() => { setStep("info"); setAgreedToPolicy(false); }} className="mt-4 text-brand-muted text-sm hover:text-brand-gold transition-colors">
               &larr; Back
             </button>
           </motion.div>
@@ -450,14 +471,6 @@ export default function BookingFlow({ services, preselected = "" }: { services: 
           <motion.div key="payment" {...fadeStep}>
             <h2 className="text-brand-white text-lg font-semibold mb-2">Secure Your Spot</h2>
             <p className="text-brand-muted text-sm mb-6">$10.60 deposit charged now. Remainder paid at appointment.</p>
-
-            <div className="bg-brand-charcoal border border-white/5 p-4 mb-6 space-y-2 text-xs text-brand-muted leading-relaxed">
-              <p className="text-brand-gold text-xs tracking-wider uppercase font-semibold mb-2">Policy</p>
-              <p>• Same-day cancellation — $5 fee charged to card.</p>
-              <p>• 10+ minutes late — $10 fee charged to card.</p>
-              <p>• No-show — full service charge applies.</p>
-              <p>• Cancel 24hrs+ before — full deposit refunded.</p>
-            </div>
 
             <Elements
               stripe={stripePromise}
