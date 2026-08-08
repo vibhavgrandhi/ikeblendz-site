@@ -1,10 +1,20 @@
 export const runtime = "nodejs";
 
 import { NextRequest, NextResponse } from "next/server";
-import Stripe from "stripe";
 import { getServiceClient } from "@/lib/supabase";
+import { sendSms } from "@/lib/sms";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+function formatTime(t: string) {
+  const [h, m] = t.split(":").map(Number);
+  const ampm = h >= 12 ? "PM" : "AM";
+  return `${h % 12 || 12}:${m.toString().padStart(2, "0")} ${ampm}`;
+}
+
+function formatDate(d: string) {
+  return new Date(d + "T00:00:00").toLocaleDateString("en-US", {
+    weekday: "short", month: "short", day: "numeric",
+  });
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -12,23 +22,10 @@ export async function POST(req: NextRequest) {
     const {
       service_name, date, start_time, end_time,
       customer_name, customer_phone, notes, customer_instagram,
-      stripe_payment_intent_id, stripe_customer_id,
     } = body;
 
     if (!service_name || !date || !start_time || !end_time || !customer_name?.trim()) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
-    }
-
-    // Verify payment succeeded and get payment method
-    let stripe_payment_method_id: string | null = null;
-    if (stripe_payment_intent_id) {
-      const pi = await stripe.paymentIntents.retrieve(stripe_payment_intent_id);
-      if (pi.status !== "succeeded") {
-        return NextResponse.json({ error: "Payment not completed" }, { status: 402 });
-      }
-      stripe_payment_method_id = typeof pi.payment_method === "string"
-        ? pi.payment_method
-        : pi.payment_method?.id ?? null;
     }
 
     const supabase = getServiceClient();
@@ -58,6 +55,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "This time slot is no longer available" }, { status: 409 });
     }
 
+    // Check if this phone number has a prior cancellation
+    let canceledBefore = false;
+    if (customer_phone?.trim()) {
+      const { data: priorCancels } = await supabase
+        .from("appointments")
+        .select("id")
+        .eq("customer_phone", customer_phone.trim())
+        .eq("status", "cancelled")
+        .limit(1);
+      canceledBefore = !!(priorCancels && priorCancels.length > 0);
+    }
+
     const notesValue = [
       customer_instagram?.trim() ? `Instagram: ${customer_instagram.trim()}` : null,
       notes?.trim() || null,
@@ -74,9 +83,6 @@ export async function POST(req: NextRequest) {
         end_time,
         notes: notesValue,
         status: "pending",
-        stripe_payment_intent_id: stripe_payment_intent_id || null,
-        stripe_customer_id: stripe_customer_id || null,
-        stripe_payment_method_id,
       })
       .select()
       .single();
@@ -87,6 +93,20 @@ export async function POST(req: NextRequest) {
       }
       return NextResponse.json({ error: "Failed to create appointment" }, { status: 500 });
     }
+
+    // Send SMS to Ike
+    const lines = [
+      `📅 New Booking — IkeBlendz`,
+      ``,
+      `${customer_name.trim()}`,
+      `${service_name} — ${formatDate(date)} at ${formatTime(start_time)}`,
+      customer_phone?.trim() ? `📞 ${customer_phone.trim()}` : null,
+      customer_instagram?.trim() ? `📸 ${customer_instagram.trim()}` : null,
+      notes?.trim() ? `📝 ${notes.trim()}` : null,
+      canceledBefore ? `\n⚠️ CANCELED BEFORE — charge $5 in person` : null,
+    ].filter((l) => l !== null).join("\n");
+
+    await sendSms(lines).catch(() => {}); // non-blocking, don't fail booking if SMS fails
 
     return NextResponse.json({ appointment }, { status: 201 });
   } catch {

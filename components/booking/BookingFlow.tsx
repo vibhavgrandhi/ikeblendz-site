@@ -2,17 +2,10 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { loadStripe } from "@stripe/stripe-js";
-import { Elements, PaymentRequestButtonElement, useStripe } from "@stripe/react-stripe-js";
-import type { PaymentRequest } from "@stripe/stripe-js";
 import Calendar, { type DayStatus } from "@/components/ui/Calendar";
 import type { Service } from "@/types";
 
-const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
-
-const DEPOSIT_AMOUNT = 10.60;
-
-type Step = "service" | "date" | "time" | "info" | "review" | "payment" | "confirmed";
+type Step = "service" | "date" | "time" | "info" | "review" | "confirmed";
 
 interface TimeSlot {
   start: string;
@@ -34,86 +27,6 @@ const fadeStep = {
   transition: { duration: 0.25, ease: "easeOut" as const },
 };
 
-interface PaymentFormProps {
-  onSuccess: (paymentIntentId: string, customerId: string) => void;
-  onSkip: () => void;
-  clientSecret: string;
-  amount: number;
-}
-
-function PaymentForm({ onSuccess, onSkip, clientSecret, amount }: PaymentFormProps) {
-  const stripe = useStripe();
-  const [paymentRequest, setPaymentRequest] = useState<PaymentRequest | null>(null);
-  const [canPay, setCanPay] = useState<boolean | null>(null);
-  const [error, setError] = useState("");
-
-  useEffect(() => {
-    if (!stripe) return;
-    const pr = stripe.paymentRequest({
-      country: "US",
-      currency: "usd",
-      total: { label: "IkeBlendz Deposit", amount: Math.round(amount * 100) },
-      requestPayerName: false,
-      requestPayerEmail: false,
-    });
-
-    pr.canMakePayment().then((result) => {
-      setCanPay(!!(result?.applePay || result?.googlePay));
-      if (result) setPaymentRequest(pr);
-    });
-
-    pr.on("paymentmethod", async (ev) => {
-      const { paymentIntent, error: confirmError } = await stripe.confirmCardPayment(
-        clientSecret,
-        { payment_method: ev.paymentMethod.id },
-        { handleActions: false }
-      );
-      if (confirmError) {
-        ev.complete("fail");
-        setError(confirmError.message || "Payment failed");
-        return;
-      }
-      ev.complete("success");
-      if (paymentIntent?.status === "requires_action") {
-        const { error: actionError, paymentIntent: pi2 } = await stripe.confirmCardPayment(clientSecret);
-        if (actionError) { setError(actionError.message || "Payment failed"); return; }
-        onSuccess(pi2!.id, "");
-      } else {
-        onSuccess(paymentIntent!.id, "");
-      }
-    });
-  }, [stripe, amount, clientSecret, onSuccess]);
-
-  if (canPay === null) return <p className="text-brand-muted text-sm py-4">Loading payment...</p>;
-
-  return (
-    <div>
-      {error && <p className="mb-4 text-red-400 text-sm">{error}</p>}
-      {canPay && paymentRequest ? (
-        <div className="mb-3">
-          <PaymentRequestButtonElement
-            options={{
-              paymentRequest,
-              style: { paymentRequestButton: { theme: "dark", height: "52px" } },
-            }}
-          />
-        </div>
-      ) : (
-        <p className="text-brand-muted text-sm mb-4 text-center">
-          Apple Pay not available on this device. Pay at appointment.
-        </p>
-      )}
-      <button
-        type="button"
-        onClick={onSkip}
-        className="w-full py-3 text-brand-muted text-sm hover:text-brand-white transition-colors border border-white/10 hover:border-white/20"
-      >
-        Skip — Pay at Appointment
-      </button>
-    </div>
-  );
-}
-
 export default function BookingFlow({ services, preselected = "" }: { services: Service[]; preselected?: string }) {
   const [step, setStep] = useState<Step>(preselected ? "date" : "service");
   const [service, setService] = useState(preselected);
@@ -129,10 +42,6 @@ export default function BookingFlow({ services, preselected = "" }: { services: 
   const [loading, setLoading] = useState(false);
   const [monthLoading, setMonthLoading] = useState(false);
   const [error, setError] = useState("");
-  const [clientSecret, setClientSecret] = useState("");
-  const [stripeCustomerId, setStripeCustomerId] = useState("");
-  const [stripePaymentIntentId, setStripePaymentIntentId] = useState("");
-  const [prepaid, setPrepaid] = useState(false);
   const [agreedToPolicy, setAgreedToPolicy] = useState(false);
 
   const svc = services.find((s) => s.name === service);
@@ -188,32 +97,7 @@ export default function BookingFlow({ services, preselected = "" }: { services: 
     setStep("review");
   };
 
-  const goToPayment = async () => {
-    setLoading(true);
-    setError("");
-    try {
-      const res = await fetch("/api/create-payment-intent", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          amount: DEPOSIT_AMOUNT,
-          serviceName: service,
-          customerName: name,
-          customerPhone: phone || null,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to initialize payment");
-      setClientSecret(data.clientSecret);
-      setStripeCustomerId(data.customerId);
-      setStep("payment");
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
-    }
-    setLoading(false);
-  };
-
-  const confirmBooking = async (piId?: string, custId?: string) => {
+  const confirmBooking = async () => {
     setLoading(true);
     setError("");
     try {
@@ -229,27 +113,15 @@ export default function BookingFlow({ services, preselected = "" }: { services: 
           customer_phone: phone || null,
           customer_instagram: instagram || null,
           notes,
-          stripe_payment_intent_id: piId || null,
-          stripe_customer_id: custId || stripeCustomerId || null,
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Booking failed");
-      if (piId) setPrepaid(true);
       setStep("confirmed");
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     }
     setLoading(false);
-  };
-
-  const handlePaymentSuccess = async (piId: string, custId: string) => {
-    setStripePaymentIntentId(piId);
-    await confirmBooking(piId, stripeCustomerId);
-  };
-
-  const handleSkipPayment = async () => {
-    await confirmBooking();
   };
 
   const today = new Date().toISOString().split("T")[0];
@@ -263,7 +135,7 @@ export default function BookingFlow({ services, preselected = "" }: { services: 
     { key: "review", label: "Confirm" },
   ];
 
-  const stepOrder: Step[] = ["service", "date", "time", "info", "review", "payment", "confirmed"];
+  const stepOrder: Step[] = ["service", "date", "time", "info", "review", "confirmed"];
   const currentIdx = Math.min(stepOrder.indexOf(step), 4);
 
   return (
@@ -274,7 +146,7 @@ export default function BookingFlow({ services, preselected = "" }: { services: 
       </div>
       <h1 className="font-display text-4xl sm:text-5xl font-bold text-brand-white mb-8">Book Your Cut</h1>
 
-      {step !== "confirmed" && step !== "payment" && (
+      {step !== "confirmed" && (
         <div className="flex gap-1 mb-10">
           {steps.map((s, i) => (
             <div key={s.key} className="flex-1">
@@ -426,10 +298,10 @@ export default function BookingFlow({ services, preselected = "" }: { services: 
 
             <div className="bg-brand-charcoal border border-white/5 p-4 mb-5 space-y-2 text-xs text-brand-muted leading-relaxed">
               <p className="text-brand-gold text-xs tracking-wider uppercase font-semibold mb-2">Booking Policies</p>
-              <p>• Same-day cancellation — $5 fee charged to card.</p>
-              <p>• 10+ minutes late — $10 fee charged to card.</p>
-              <p>• No-show — full service charge applies.</p>
-              <p>• Cancel 24hrs+ before — full deposit refunded.</p>
+              <p>• Payment is due in person at time of service.</p>
+              <p>• Arriving 10+ minutes late — additional $10 charged in person.</p>
+              <p>• No-show or same-day cancel — $5 fee applies to your next booking.</p>
+              <p>• Cancel 24hrs+ before — no charge, spot freed for others.</p>
             </div>
 
             <label className="flex items-start gap-3 mb-5 cursor-pointer group">
@@ -447,50 +319,16 @@ export default function BookingFlow({ services, preselected = "" }: { services: 
             {error && <p className="mb-4 text-red-400 text-sm">{error}</p>}
 
             <button
-              onClick={goToPayment}
+              onClick={confirmBooking}
               disabled={loading || !agreedToPolicy}
-              className="w-full py-3.5 bg-brand-gold text-brand-black font-semibold text-sm tracking-widest uppercase hover:bg-brand-gold-light transition-colors disabled:opacity-40 disabled:cursor-not-allowed mb-3"
+              className="w-full py-3.5 bg-brand-gold text-brand-black font-semibold text-sm tracking-widest uppercase hover:bg-brand-gold-light transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              {loading ? "Loading..." : `Pre-Pay $${DEPOSIT_AMOUNT.toFixed(2)} Deposit`}
-            </button>
-            <button
-              onClick={() => confirmBooking()}
-              disabled={loading || !agreedToPolicy}
-              className="w-full py-3 text-brand-muted text-sm hover:text-brand-white transition-colors border border-white/10 hover:border-white/20 disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              {loading ? "Booking..." : "Book — Pay at Appointment"}
+              {loading ? "Booking..." : "Confirm Booking"}
             </button>
 
             <button onClick={() => { setStep("info"); setAgreedToPolicy(false); }} className="mt-4 text-brand-muted text-sm hover:text-brand-gold transition-colors">
               &larr; Back
             </button>
-          </motion.div>
-        )}
-
-        {step === "payment" && clientSecret && (
-          <motion.div key="payment" {...fadeStep}>
-            <h2 className="text-brand-white text-lg font-semibold mb-2">Secure Your Spot</h2>
-            <p className="text-brand-muted text-sm mb-6">$10.60 deposit charged now. Remainder paid at appointment.</p>
-
-            <Elements
-              stripe={stripePromise}
-              options={{
-                clientSecret,
-                appearance: {
-                  theme: "night",
-                  variables: {
-                    colorPrimary: "#c8a55a",
-                    colorBackground: "#1a1a1a",
-                    colorText: "#f5f0e8",
-                    colorDanger: "#ef4444",
-                    fontFamily: "ui-sans-serif, system-ui, sans-serif",
-                    borderRadius: "0px",
-                  },
-                },
-              }}
-            >
-              <PaymentForm onSuccess={handlePaymentSuccess} onSkip={handleSkipPayment} clientSecret={clientSecret} amount={DEPOSIT_AMOUNT} />
-            </Elements>
           </motion.div>
         )}
 
@@ -510,9 +348,7 @@ export default function BookingFlow({ services, preselected = "" }: { services: 
             <p className="text-brand-muted mb-2">
               {service} on {new Date(date + "T00:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })} at {formatTime(time)}
             </p>
-            <p className="text-brand-muted/60 text-sm">
-              {prepaid ? "Deposit paid. See you at IkeBlendz!" : "See you at IkeBlendz!"}
-            </p>
+            <p className="text-brand-muted/60 text-sm">See you at IkeBlendz. Payment due in person.</p>
           </motion.div>
         )}
       </AnimatePresence>
