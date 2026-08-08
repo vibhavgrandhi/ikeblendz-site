@@ -16,7 +16,7 @@ export default function VideoHero() {
   }, []);
 
   return (
-    <section className="relative w-full h-screen min-h-[600px] max-h-[1200px] overflow-hidden">
+    <section className="relative w-full max-w-full h-screen min-h-[600px] max-h-[1200px] overflow-hidden">
       <video
         ref={videoRef}
         className="absolute inset-0 w-full h-full object-cover"

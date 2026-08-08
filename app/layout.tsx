@@ -43,9 +43,9 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${display.variable} ${body.variable} ${script.variable}`}>
-      <body className="font-body bg-brand-black text-brand-light antialiased">
+      <body className="font-body bg-brand-black text-brand-light antialiased w-full overflow-x-hidden">
         <Nav />
-        <main className="min-h-screen pb-16 md:pb-0">{children}</main>
+        <main className="min-h-screen pb-16 md:pb-0 w-full overflow-x-hidden">{children}</main>
         <Footer />
         <MobileTabBar />
       </body>

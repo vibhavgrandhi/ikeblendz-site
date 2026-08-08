@@ -44,7 +44,7 @@ export default function TypewriterHeadline({
         <span>{text.slice(0, cut)}</span>
         <span>{text.slice(cut)}</span>
       </h1>
-      <h1 className={`${headingCls} absolute top-0 left-0`}>
+      <h1 className={`${headingCls} absolute top-0 left-0 w-full`}>
         <span className="text-brand-white">{firstPart}</span>
         <span className="text-brand-gold">{secondPart}</span>
         {!finished && (
