@@ -162,32 +162,6 @@ export default function AppointmentsManager({ api }: { api: ApiFn }) {
                 )}
               </div>
 
-              {/* Charge actions — always show, disabled if no card */}
-              <div className="mt-2 flex flex-wrap gap-2">
-                <button
-                  onClick={() => chargeLateFee(a.id)}
-                  disabled={!a.stripe_payment_method_id || actionLoading === a.id + "-late"}
-                  className="px-3 py-1 text-xs bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                >
-                  {actionLoading === a.id + "-late" ? "Charging..." : "Charge $10 Late Fee"}
-                </button>
-                <button
-                  onClick={() => chargeCancelFee(a.id)}
-                  disabled={!a.stripe_payment_method_id || actionLoading === a.id + "-cancel"}
-                  className="px-3 py-1 text-xs bg-orange-500/20 text-orange-400 hover:bg-orange-500/30 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                >
-                  {actionLoading === a.id + "-cancel" ? "Charging..." : "Charge $5 Cancel Fee"}
-                </button>
-                {a.stripe_payment_intent_id && (
-                  <button
-                    onClick={() => refundPayment(a.id)}
-                    disabled={actionLoading === a.id + "-refund"}
-                    className="px-3 py-1 text-xs bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 transition-colors disabled:opacity-30"
-                  >
-                    {actionLoading === a.id + "-refund" ? "Refunding..." : "Refund Deposit"}
-                  </button>
-                )}
-              </div>
 
               {actionMsg?.id === a.id && (
                 <p className={`mt-2 text-xs ${actionMsg.ok ? "text-green-400" : "text-red-400"}`}>{actionMsg.msg}</p>
