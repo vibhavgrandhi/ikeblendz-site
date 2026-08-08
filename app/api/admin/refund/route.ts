@@ -28,9 +28,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "No payment found for this appointment" }, { status: 400 });
   }
 
-  const refund = await stripe.refunds.create({
-    payment_intent: appt.stripe_payment_intent_id,
-  });
+  const refund = await stripe.refunds.create(
+    { payment_intent: appt.stripe_payment_intent_id },
+    { idempotencyKey: `refund-deposit-${appointmentId}` }
+  );
 
   return NextResponse.json({ success: true, refundId: refund.id });
 }

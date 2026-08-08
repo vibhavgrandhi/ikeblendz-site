@@ -28,15 +28,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "No saved payment method for this appointment" }, { status: 400 });
   }
 
-  const paymentIntent = await stripe.paymentIntents.create({
-    amount: 1000, // $10.00
-    currency: "usd",
-    customer: appt.stripe_customer_id,
-    payment_method: appt.stripe_payment_method_id,
-    off_session: true,
-    confirm: true,
-    description: `Late fee — ${appt.customer_name}`,
-  });
+  const paymentIntent = await stripe.paymentIntents.create(
+    {
+      amount: 1000, // $10.00
+      currency: "usd",
+      customer: appt.stripe_customer_id,
+      payment_method: appt.stripe_payment_method_id,
+      off_session: true,
+      confirm: true,
+      description: `Late fee — ${appt.customer_name}`,
+    },
+    { idempotencyKey: `late-fee-${appointmentId}` }
+  );
 
   return NextResponse.json({ success: true, paymentIntentId: paymentIntent.id });
 }
