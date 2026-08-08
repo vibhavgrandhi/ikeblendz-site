@@ -3,7 +3,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { loadStripe } from "@stripe/stripe-js";
-import { Elements, PaymentElement, useStripe, useElements } from "@stripe/react-stripe-js";
+import { Elements, PaymentRequestButtonElement, useStripe } from "@stripe/react-stripe-js";
+import type { PaymentRequest } from "@stripe/stripe-js";
 import Calendar, { type DayStatus } from "@/components/ui/Calendar";
 import type { Service } from "@/types";
 
@@ -36,50 +37,72 @@ const fadeStep = {
 interface PaymentFormProps {
   onSuccess: (paymentIntentId: string, customerId: string) => void;
   onSkip: () => void;
+  clientSecret: string;
+  amount: number;
 }
 
-function PaymentForm({ onSuccess, onSkip }: PaymentFormProps) {
+function PaymentForm({ onSuccess, onSkip, clientSecret, amount }: PaymentFormProps) {
   const stripe = useStripe();
-  const elements = useElements();
-  const [loading, setLoading] = useState(false);
+  const [paymentRequest, setPaymentRequest] = useState<PaymentRequest | null>(null);
+  const [canPay, setCanPay] = useState<boolean | null>(null);
   const [error, setError] = useState("");
 
-  const handlePay = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!stripe || !elements) return;
-    setLoading(true);
-    setError("");
-
-    const { error: stripeError, paymentIntent } = await stripe.confirmPayment({
-      elements,
-      redirect: "if_required",
+  useEffect(() => {
+    if (!stripe) return;
+    const pr = stripe.paymentRequest({
+      country: "US",
+      currency: "usd",
+      total: { label: "IkeBlendz Deposit", amount: Math.round(amount * 100) },
+      requestPayerName: false,
+      requestPayerEmail: false,
     });
 
-    if (stripeError) {
-      setError(stripeError.message || "Payment failed");
-      setLoading(false);
-      return;
-    }
+    pr.canMakePayment().then((result) => {
+      setCanPay(!!(result?.applePay || result?.googlePay));
+      if (result) setPaymentRequest(pr);
+    });
 
-    if (paymentIntent?.status === "succeeded") {
-      onSuccess(paymentIntent.id, "");
-    }
-    setLoading(false);
-  };
+    pr.on("paymentmethod", async (ev) => {
+      const { paymentIntent, error: confirmError } = await stripe.confirmCardPayment(
+        clientSecret,
+        { payment_method: ev.paymentMethod.id },
+        { handleActions: false }
+      );
+      if (confirmError) {
+        ev.complete("fail");
+        setError(confirmError.message || "Payment failed");
+        return;
+      }
+      ev.complete("success");
+      if (paymentIntent?.status === "requires_action") {
+        const { error: actionError, paymentIntent: pi2 } = await stripe.confirmCardPayment(clientSecret);
+        if (actionError) { setError(actionError.message || "Payment failed"); return; }
+        onSuccess(pi2!.id, "");
+      } else {
+        onSuccess(paymentIntent!.id, "");
+      }
+    });
+  }, [stripe, amount, clientSecret, onSuccess]);
+
+  if (canPay === null) return <p className="text-brand-muted text-sm py-4">Loading payment...</p>;
 
   return (
-    <form onSubmit={handlePay}>
-      <div className="bg-brand-charcoal border border-white/5 p-5 mb-5">
-        <PaymentElement options={{ layout: "tabs" }} />
-      </div>
+    <div>
       {error && <p className="mb-4 text-red-400 text-sm">{error}</p>}
-      <button
-        type="submit"
-        disabled={!stripe || loading}
-        className="w-full py-3.5 bg-brand-gold text-brand-black font-semibold text-sm tracking-widest uppercase hover:bg-brand-gold-light transition-colors disabled:opacity-50 mb-3"
-      >
-        {loading ? "Processing..." : `Pay $${DEPOSIT_AMOUNT.toFixed(2)} Deposit`}
-      </button>
+      {canPay && paymentRequest ? (
+        <div className="mb-3">
+          <PaymentRequestButtonElement
+            options={{
+              paymentRequest,
+              style: { paymentRequestButton: { theme: "dark", height: "52px" } },
+            }}
+          />
+        </div>
+      ) : (
+        <p className="text-brand-muted text-sm mb-4 text-center">
+          Apple Pay not available on this device. Pay at appointment.
+        </p>
+      )}
       <button
         type="button"
         onClick={onSkip}
@@ -87,7 +110,7 @@ function PaymentForm({ onSuccess, onSkip }: PaymentFormProps) {
       >
         Skip — Pay at Appointment
       </button>
-    </form>
+    </div>
   );
 }
 
@@ -453,7 +476,7 @@ export default function BookingFlow({ services, preselected = "" }: { services: 
                 },
               }}
             >
-              <PaymentForm onSuccess={handlePaymentSuccess} onSkip={handleSkipPayment} />
+              <PaymentForm onSuccess={handlePaymentSuccess} onSkip={handleSkipPayment} clientSecret={clientSecret} amount={DEPOSIT_AMOUNT} />
             </Elements>
           </motion.div>
         )}
