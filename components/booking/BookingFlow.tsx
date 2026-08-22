@@ -35,6 +35,7 @@ export default function BookingFlow({ services, preselected = "" }: { services: 
   const [timeEnd, setTimeEnd] = useState("");
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
   const [instagram, setInstagram] = useState("");
   const [notes, setNotes] = useState("");
   const [slots, setSlots] = useState<TimeSlot[]>([]);
@@ -111,6 +112,7 @@ export default function BookingFlow({ services, preselected = "" }: { services: 
           end_time: timeEnd,
           customer_name: name,
           customer_phone: phone || null,
+          customer_email: email || null,
           customer_instagram: instagram || null,
           notes,
         }),
@@ -251,6 +253,12 @@ export default function BookingFlow({ services, preselected = "" }: { services: 
                 <input type="tel" required value={phone} onChange={(e) => setPhone(e.target.value)}
                   className="w-full bg-brand-charcoal border border-white/10 text-brand-white px-4 py-3 focus:border-brand-gold focus:outline-none transition-colors"
                   placeholder="(555) 123-4567" />
+              </div>
+              <div>
+                <label className="block text-brand-muted text-xs tracking-wider uppercase mb-1.5">Email (optional — for confirmation)</label>
+                <input type="email" value={email} onChange={(e) => setEmail(e.target.value)}
+                  className="w-full bg-brand-charcoal border border-white/10 text-brand-white px-4 py-3 focus:border-brand-gold focus:outline-none transition-colors"
+                  placeholder="you@email.com" />
               </div>
               <div>
                 <label className="block text-brand-muted text-xs tracking-wider uppercase mb-1.5">Instagram (optional)</label>

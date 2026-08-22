@@ -3,6 +3,7 @@ export const runtime = "nodejs";
 import { NextRequest, NextResponse } from "next/server";
 import { getServiceClient } from "@/lib/supabase";
 import { sendSms } from "@/lib/sms";
+import { sendBookingConfirmation } from "@/lib/email";
 
 function formatTime(t: string) {
   const [h, m] = t.split(":").map(Number);
@@ -21,7 +22,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const {
       service_name, date, start_time, end_time,
-      customer_name, customer_phone, notes, customer_instagram,
+      customer_name, customer_phone, customer_email, notes, customer_instagram,
     } = body;
 
     if (!service_name || !date || !start_time || !end_time || !customer_name?.trim()) {
@@ -83,6 +84,7 @@ export async function POST(req: NextRequest) {
         end_time,
         notes: notesValue,
         status: "pending",
+        customer_email: customer_email?.trim() || null,
         stripe_payment_intent_id: null,
         stripe_customer_id: null,
         stripe_payment_method_id: null,
@@ -109,7 +111,17 @@ export async function POST(req: NextRequest) {
       canceledBefore ? `\n⚠️ CANCELED BEFORE — charge $5 in person` : null,
     ].filter((l) => l !== null).join("\n");
 
-    await sendSms(lines).catch(() => {}); // non-blocking, don't fail booking if SMS fails
+    await sendSms(lines).catch(() => {});
+
+    if (customer_email?.trim()) {
+      await sendBookingConfirmation({
+        to: customer_email.trim(),
+        name: customer_name.trim(),
+        service: service_name,
+        date: formatDate(date),
+        time: formatTime(start_time),
+      }).catch(() => {});
+    }
 
     return NextResponse.json({ appointment }, { status: 201 });
   } catch {
